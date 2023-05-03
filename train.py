@@ -150,6 +150,7 @@ class CustomTrainer(Trainer):
     def to_fill(r, g, b):
         if "_" in [r, g, b]:
             return "none"
+
         def to_hex(n):
             a = str(hex(int(n)).split('x')[-1])
             return "0" * (2 - len(a)) + a
@@ -210,9 +211,9 @@ class CustomTrainer(Trainer):
         print(input, prompt)
         size = input.count("path")
         enc = tokenizer.encode(prompt)
-        outputs = model.generate(input_ids=enc,
-                                 attention_mask=[1] * len(enc),
-                                 max_new_tokens=1024)
+        outputs = self.model.generate(input_ids=enc,
+                                      attention_mask=[1] * len(enc),
+                                      max_new_tokens=1024)
         print(outputs)
         try:
             expected = self.img_gen(input)
@@ -225,7 +226,6 @@ class CustomTrainer(Trainer):
         except:
             print("default")
             return model(**inputs)["loss"]
-
 
 
 trainer = CustomTrainer(
