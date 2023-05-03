@@ -184,9 +184,9 @@ class CustomTrainer(Trainer):
         prompt = None
         for k in range(size):
             while "fill" not in untokened[i]:
-                if prompt is None:
-                    prompt = "".join(untokened[:i])
                 i += 1
+            if prompt is None:
+                prompt = "".join(untokened[:i])
             i += 3
             r, g, b = untokened[i], untokened[i + 1], untokened[i + 2]
             print(r, g, b)
