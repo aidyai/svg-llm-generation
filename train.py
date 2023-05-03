@@ -195,6 +195,7 @@ class CustomTrainer(Trainer):
             path = []
             while ";" not in untokened[i]:
                 path.append(untokened[i])
+                i += 1
             print(path)
             d = " ".join(path)
             fill = self.to_fill(r, g, b)
