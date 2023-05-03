@@ -23,7 +23,6 @@ from datasets import Dataset
 from sklearn.model_selection import train_test_split
 import argparse
 
-
 # def img_gen(svg_str):
 #     canvas_width, canvas_height, shapes, shape_groups = pydiffvg.svg_to_scene(svg_str)
 #     _render = pydiffvg.RenderFunction.apply
@@ -45,18 +44,17 @@ import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument("-dp", "--dataset_path", type=str)
 parser.add_argument("-m", "--model_path", type=str)
+parser.add_argument("-t", "--tokenizer_path", type=str)
 parser.add_argument("-wkey", "--wandb_key", type=str)
 parser.add_argument("-hkey", "--hugging_key", type=str)
 parser.add_argument("-sr", "--save_repo", type=str)
 args = parser.parse_args()
 
-Path(args.save_path).mkdir(parents=True, exist_ok=True)
-
 wandb.login(key=args.wandb_key)
 wandb.init()
 
 set_seed(17)
-model_name = "bigscience/bloom-560m"
+model_name = args.model_path
 dataset_dir_name = args.dataset_path
 
 model = AutoModelForCausalLM.from_pretrained(
@@ -90,6 +88,7 @@ def to_list(color):
 
 class DatasetImpl(IterableDataset):
     def __init__(self, tokenizer, dataset, context_size=1024):
+        self.cuted = []
         self.tokenizer = tokenizer
         self.dataset = dataset
         self.context_size = context_size
@@ -102,36 +101,39 @@ class DatasetImpl(IterableDataset):
     def __len__(self):
         return len(self.cuted)
 
-    def to_map(self, tokens):
+    def to_map(self, tokens, size, prompt):
         pad_size = (self.context_size - len(tokens))
         tokens = [self.tokenizer.pad_token_id] * pad_size + tokens
         return {
             "input_ids": tokens,
             "attention_mask": [0] * pad_size + [1] * (self.context_size - pad_size),
-            "labels": tokens
+            "labels": tokens,
+            "size": size,
+            "prompt": prompt
         }
 
     def cut(self):
-        self.cuted = []
-        cut = []
         for s in self.dataset:
             paths = s["paths"]
             prompt = s["prompt"]
             if prompt is not None:
-                prompt = tokenizer.encode(s["prompt"])
+                prompt = prompt.replace("<!--", "")
+                prompt = prompt.replace("-->", "").strip()
             else:
                 continue
             tokens = []
-            for i, path in enumerate(paths):
-                tokens += prompt + tokenizer.encode("path" + str(i))
+            for k, path in enumerate(paths):
+                tokens += tokenizer.encode(prompt + " fill" + str(k) + ":")
                 tokens += [tokenizer.encode(i)[0] for i in to_list(path["fill"])]
+                tokens += tokenizer.encode(" path" + str(k) + ":")
                 tokens += [tokenizer.encode(i)[0] for i in path["path"]]
+                tokens += tokenizer.encode(';')
             if len(tokens) > self.context_size:
                 continue
-            self.cuted.append(self.to_map(tokens))
+            self.cuted.append(self.to_map(tokens, len(paths), s["prompt"]))
 
 
-tokenizer = AutoTokenizer.from_pretrained(model_name)
+tokenizer = AutoTokenizer.from_pretrained(args.tokenizer_path)
 
 train_ds = DatasetImpl(
     tokenizer,
@@ -146,14 +148,18 @@ class CustomTrainer(Trainer):
              'xmlns:ev="http://www.w3.org/2001/xml-events" width="512" height="512">'
     footer = '</svg>'
 
-    def to_fill(self, r, g, b):
+    @staticmethod
+    def to_fill(r, g, b):
+        if "_" in [r, g, b]:
+            return "none"
         def to_hex(n):
-            a = str(hex(n).split('x')[-1])
+            a = str(hex(int(n)).split('x')[-1])
             return "0" * (2 - len(a)) + a
 
         return "#" + to_hex(r) + to_hex(g) + to_hex(b)
 
-    def img_gen(self, svg_str):
+    @staticmethod
+    def img_gen(svg_str):
         canvas_width, canvas_height, shapes, shape_groups = pydiffvg.svg_str_to_scene(svg_str)
         _render = pydiffvg.RenderFunction.apply
         scene_args = pydiffvg.RenderFunction.serialize_scene(
@@ -175,7 +181,7 @@ class CustomTrainer(Trainer):
             while "fill" not in untokened[i]:
                 i += 1
             i += 3
-            r, g, b = int(untokened[i]), int(untokened[i + 1]), int(untokened[i + 2])
+            r, g, b = untokened[i], untokened[i + 1], untokened[i + 2]
             while "path" not in untokened[i]:
                 i += 1
             i += 2
@@ -188,8 +194,9 @@ class CustomTrainer(Trainer):
         return "\n".join([self.header] + result + [self.footer])
 
     def compute_loss(self, model, inputs, return_outputs=False):
-        outputs = model.generate(input_ids=inputs["input_ids"],
-                                 attention_mask=inputs["attention_mask"],
+        prompt = self.tokenizer.encode(inputs["prompt"])
+        outputs = model.generate(input_ids=prompt,
+                                 attention_mask=[1] * len(prompt),
                                  max_new_tokens=1024)
         try:
             generated = self.img_gen(self.detokenize(outputs.detach().cpu().numpy(), inputs["size"]))
@@ -197,7 +204,7 @@ class CustomTrainer(Trainer):
             loss_fct = nn.MSELoss()
             print("pictured")
             return loss_fct(expected, generated)
-        except Exception:
+        except:
             print("default")
             return model(**inputs)["loss"]
 
