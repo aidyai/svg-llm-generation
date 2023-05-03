@@ -197,7 +197,7 @@ class CustomTrainer(Trainer):
         return "\n".join([self.header] + result + [self.footer]), prompt
 
     def compute_loss(self, model, inputs, return_outputs=False):
-        filtered = [token for token in inputs["labels"] if token != tokenizer.pad_token_id]
+        filtered = [token for token in inputs["labels"][0] if token != tokenizer.pad_token_id]
         input, prompt = self.detokenize(filtered)
         size = input.count("path")
         enc = tokenizer.encode(prompt)
