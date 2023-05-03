@@ -211,6 +211,7 @@ class CustomTrainer(Trainer):
         print(input, prompt)
         size = input.count("path")
         enc = tokenizer(prompt, return_tensors="pt")
+        enc = {k: v.to("cuda") for k, v in enc.items()}
         print(enc)
         outputs = self.model.generate(input_ids=enc["input_ids"],
                                       attention_mask=enc["attention_mask"],
