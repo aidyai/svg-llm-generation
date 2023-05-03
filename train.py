@@ -195,8 +195,10 @@ class CustomTrainer(Trainer):
             generated = self.img_gen(self.detokenize(outputs.detach().cpu().numpy(), inputs["size"]))
             expected = self.img_gen(self.detokenize(inputs["labels"], inputs["size"]))
             loss_fct = nn.MSELoss()
+            print("pictured")
             return loss_fct(expected, generated)
         except Exception:
+            print("default")
             return model(**inputs)["loss"]
 
 
