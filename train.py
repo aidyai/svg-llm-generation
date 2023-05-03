@@ -172,9 +172,12 @@ class CustomTrainer(Trainer):
         return img
 
     def detokenize(self, tokens, size=None):
+        print("detokenize")
         untokened = [self.tokenizer.decode(i, skip_special_tokens=True) for i in tokens]
+        print(untokened)
         if size is None:
             size = untokened.count(";")
+        print(size)
         i = 0
         result = []
         prompt = None
@@ -185,12 +188,14 @@ class CustomTrainer(Trainer):
                 i += 1
             i += 3
             r, g, b = untokened[i], untokened[i + 1], untokened[i + 2]
+            print(r, g, b)
             while "path" not in untokened[i]:
                 i += 1
             i += 2
             path = []
             while ";" not in untokened[i]:
                 path.append(untokened[i])
+            print(path)
             d = " ".join(path)
             fill = self.to_fill(r, g, b)
             result.append('<path d="' + d + '" fill="' + fill + '"/>')
