@@ -1,6 +1,7 @@
 import pickle
 
 import huggingface_hub
+from torch import nn
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
@@ -9,7 +10,7 @@ from transformers import (
     DataCollatorForLanguageModeling,
     set_seed
 )
-from torch import nn
+import torch.nn.functional as F
 import gc
 import wandb
 import pydiffvg
@@ -37,9 +38,13 @@ import argparse
 #                   *scene_args)
 #     return img
 #
+# # loss_fct = nn.MSELoss()
+# y_pred = torch.randn(10, requires_grad=True)
+# y_true = torch.randn(10)
 #
 # first = img_gen("D:\\dloads\\svgicons\\svgicons\\processed\\_0_deleted_303484_apple1-logo.svg")
-# pydiffvg.imwrite(first.cpu(), "./1.png", gamma=2.2)
+# first.requires_grad = True
+# print(y_pred * 10)
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-dp", "--dataset_path", type=str)
@@ -225,7 +230,7 @@ class CustomTrainer(Trainer):
             # print(generated)
             loss_fct = nn.MSELoss()
             print("pictured")
-            return loss_fct(expected, generated)
+            return model(**inputs)["loss"] * loss_fct(expected, generated)
         except:
             print("default")
             return model(**inputs)["loss"]
