@@ -1,3 +1,6 @@
+import pickle
+
+import huggingface_hub
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
@@ -20,33 +23,31 @@ from datasets import Dataset
 from sklearn.model_selection import train_test_split
 import argparse
 
+
 # def img_gen(svg_str):
-#         canvas_width, canvas_height, shapes, shape_groups = pydiffvg.svg_to_scene(svg_str)
-#         _render = pydiffvg.RenderFunction.apply
-#         scene_args = pydiffvg.RenderFunction.serialize_scene(
-#             canvas_width, canvas_height, shapes, shape_groups)
-#         img = _render(canvas_width,  # width
-#                       canvas_height,  # height
-#                       2,  # num_samples_x
-#                       2,  # num_samples_y
-#                       0,  # seed
-#                       None,
-#                       *scene_args)
-#         return img
+#     canvas_width, canvas_height, shapes, shape_groups = pydiffvg.svg_to_scene(svg_str)
+#     _render = pydiffvg.RenderFunction.apply
+#     scene_args = pydiffvg.RenderFunction.serialize_scene(
+#         canvas_width, canvas_height, shapes, shape_groups)
+#     img = _render(128,  # width
+#                   128,  # height
+#                   5,  # num_samples_x
+#                   5,  # num_samples_y
+#                   0,  # seed
+#                   None,
+#                   *scene_args)
+#     return img
 #
-# first = img_gen("C:\\Users\\glebm\\Desktop\\fruits\\processed\\0orange-heart.svg")
-# second = img_gen("C:\\Users\\glebm\\Desktop\\fruits\\processed\\0fruit-food-lemon.svg")
+#
+# first = img_gen("D:\\dloads\\svgicons\\svgicons\\processed\\_0_deleted_303484_apple1-logo.svg")
 # pydiffvg.imwrite(first.cpu(), "./1.png", gamma=2.2)
-# pydiffvg.imwrite(second.cpu(), "./2.png", gamma=2.2)
-#
-#
-#
-# print(nn.MSELoss()(first, second))
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-dp", "--dataset_path", type=str)
-parser.add_argument("-key", "--wandb_key", type=str)
-parser.add_argument("-sp", "--save_path", type=str)
+parser.add_argument("-m", "--model_path", type=str)
+parser.add_argument("-wkey", "--wandb_key", type=str)
+parser.add_argument("-hkey", "--hugging_key", type=str)
+parser.add_argument("-sr", "--save_repo", type=str)
 args = parser.parse_args()
 
 Path(args.save_path).mkdir(parents=True, exist_ok=True)
@@ -61,21 +62,30 @@ dataset_dir_name = args.dataset_path
 model = AutoModelForCausalLM.from_pretrained(
     model_name
 )
-config = LoraConfig(task_type=TaskType.CAUSAL_LM, inference_mode=False, r=32, lora_alpha=128, lora_dropout=0.1)
-model = get_peft_model(model, config)
-# model.to("cuda")
-model.print_trainable_parameters()
+# config = LoraConfig(task_type=TaskType.CAUSAL_LM, inference_mode=False, r=32, lora_alpha=128, lora_dropout=0.1)
+# model = get_peft_model(model, config)
+model.to("cuda")
 
 ds = []
-pathlist = Path(dataset_dir_name).rglob('*.svg')
+pathlist = Path(dataset_dir_name).rglob('*.pkl')
 for path in pathlist:
-    path_in_str = str(path)
-    svg_string = open(path_in_str).read()
-    ds.append(svg_string)
+    svg = pickle.load(open(path, "rb"))
+    ds.append(svg)
 print(ds[0])
 
 train, test = train_test_split(ds, test_size=0.1)
 len(train)
+
+
+def to_list(color):
+    res = ["F"]
+    if color == "None":
+        return ["F", "_", "_", "_"]
+    print(color)
+    res.append(str(int(color[1:3], 16)))
+    res.append(str(int(color[3:5], 16)))
+    res.append(str(int(color[5:7], 16)))
+    return res
 
 
 class DatasetImpl(IterableDataset):
@@ -92,28 +102,36 @@ class DatasetImpl(IterableDataset):
     def __len__(self):
         return len(self.cuted)
 
+    def to_map(self, tokens):
+        pad_size = (self.context_size - len(tokens))
+        tokens = [self.tokenizer.pad_token_id] * pad_size + tokens
+        return {
+            "input_ids": tokens,
+            "attention_mask": [0] * pad_size + [1] * (self.context_size - pad_size),
+            "labels": tokens
+        }
+
     def cut(self):
         self.cuted = []
         cut = []
         for s in self.dataset:
-            if "path" not in s:
+            paths = s["paths"]
+            prompt = s["prompt"]
+            if prompt is not None:
+                prompt = tokenizer.encode(s["prompt"])
+            else:
                 continue
-            prompt, code = s.split('\n')
-            prompt_tok = self.tokenizer(prompt)
-            code_tok = self.tokenizer(code)
-            whole_tok = prompt_tok["input_ids"] + code_tok["input_ids"] + [self.tokenizer.eos_token_id]
-            if len(whole_tok) > self.context_size:
+            tokens = []
+            for i, path in enumerate(paths):
+                tokens += prompt + tokenizer.encode("path" + str(i))
+                tokens += [tokenizer.encode(i)[0] for i in to_list(path["fill"])]
+                tokens += [tokenizer.encode(i)[0] for i in path["path"]]
+            if len(tokens) > self.context_size:
                 continue
-            self.cuted.append({
-                "input_ids": whole_tok + [self.tokenizer.pad_token_id] * (self.context_size - len(whole_tok)),
-                "attention_mask": [1] * len(whole_tok) + [0] * (self.context_size - len(whole_tok)),
-                "labels": whole_tok + [self.tokenizer.pad_token_id] * (self.context_size - len(whole_tok))
-            })
+            self.cuted.append(self.to_map(tokens))
 
 
 tokenizer = AutoTokenizer.from_pretrained(model_name)
-
-tokenizer
 
 train_ds = DatasetImpl(
     tokenizer,
@@ -122,44 +140,73 @@ test_ds = DatasetImpl(
     tokenizer,
     test)
 
+
 class CustomTrainer(Trainer):
+    header = '<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" ' \
+             'xmlns:ev="http://www.w3.org/2001/xml-events" width="512" height="512">'
+    footer = '</svg>'
+
+    def to_fill(self, r, g, b):
+        def to_hex(n):
+            a = str(hex(n).split('x')[-1])
+            return "0" * (2 - len(a)) + a
+
+        return "#" + to_hex(r) + to_hex(g) + to_hex(b)
 
     def img_gen(self, svg_str):
         canvas_width, canvas_height, shapes, shape_groups = pydiffvg.svg_str_to_scene(svg_str)
         _render = pydiffvg.RenderFunction.apply
         scene_args = pydiffvg.RenderFunction.serialize_scene(
             canvas_width, canvas_height, shapes, shape_groups)
-        img = _render(canvas_width,  # width
-                      canvas_height,  # height
+        img = _render(128,  # width
+                      128,  # height
                       2,  # num_samples_x
                       2,  # num_samples_y
                       0,  # seed
                       None,
                       *scene_args)
+        return img
+
+    def detokenize(self, tokens, size):
+        untokened = [self.tokenizer.decode(i, skip_special_tokens=True) for i in tokens]
+        i = 0
+        result = []
+        for k in range(size):
+            while "fill" not in untokened[i]:
+                i += 1
+            i += 3
+            r, g, b = int(untokened[i]), int(untokened[i + 1]), int(untokened[i + 2])
+            while "path" not in untokened[i]:
+                i += 1
+            i += 2
+            path = []
+            while ";" not in untokened[i]:
+                path.append(untokened[i])
+            d = " ".join(path)
+            fill = self.to_fill(r, g, b)
+            result.append('<path d="' + d + '" fill="' + fill + '"/>')
+        return "\n".join([self.header] + result + [self.footer])
 
     def compute_loss(self, model, inputs, return_outputs=False):
         outputs = model.generate(input_ids=inputs["input_ids"],
                                  attention_mask=inputs["attention_mask"],
                                  max_new_tokens=1024)
-        gen_decoded = tokenizer.batch_decode(outputs.detach().cpu().numpy(), skip_special_tokens=True)[0]
-        label_decoded = tokenizer.batch_decode(inputs["labels"], skip_special_tokens=True)[0]
         try:
-            generated = self.img_gen(gen_decoded)
-            expected = self.img_gen(label_decoded)
+            generated = self.img_gen(self.detokenize(outputs.detach().cpu().numpy(), inputs["size"]))
+            expected = self.img_gen(self.detokenize(inputs["labels"], inputs["size"]))
             loss_fct = nn.MSELoss()
             return loss_fct(expected, generated)
         except Exception:
             return model(**inputs)["loss"]
 
 
-
-trainer = CustomTrainer (
+trainer = CustomTrainer(
     model=model, args=TrainingArguments(
         "bloom-1b7_lora",
         num_train_epochs=1,
         per_device_eval_batch_size=1,
         per_device_train_batch_size=1,
-        logging_steps=100,
+        logging_steps=50,
         save_strategy="no"
     ),
     tokenizer=tokenizer,
@@ -168,4 +215,5 @@ trainer = CustomTrainer (
 )
 trainer.train()
 
-model.save_pretrained(args.save_path)
+huggingface_hub.login(token=args.hugging_key)
+model.push_to_hub(args.save_repo)
