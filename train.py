@@ -197,16 +197,22 @@ class CustomTrainer(Trainer):
         return "\n".join([self.header] + result + [self.footer]), prompt
 
     def compute_loss(self, model, inputs, return_outputs=False):
+        print("loss")
         filtered = [token for token in inputs["labels"][0] if token != tokenizer.pad_token_id]
+        print(filtered)
         input, prompt = self.detokenize(filtered)
+        print(input, prompt)
         size = input.count("path")
         enc = tokenizer.encode(prompt)
         outputs = model.generate(input_ids=enc,
                                  attention_mask=[1] * len(enc),
                                  max_new_tokens=1024)
+        print(outputs)
         try:
             expected = self.img_gen(input)
+            print(expected)
             generated = self.img_gen(self.detokenize(outputs.detach().cpu().numpy(), size))
+            print(generated)
             loss_fct = nn.MSELoss()
             print("pictured")
             return loss_fct(expected, generated)
