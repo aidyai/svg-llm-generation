@@ -65,8 +65,8 @@ dataset_dir_name = args.dataset_path
 model = AutoModelForCausalLM.from_pretrained(
     model_name
 )
-# config = LoraConfig(task_type=TaskType.CAUSAL_LM, inference_mode=False, r=32, lora_alpha=128, lora_dropout=0.1)
-# model = get_peft_model(model, config)
+config = LoraConfig(task_type=TaskType.CAUSAL_LM, inference_mode=False, r=32, lora_alpha=128, lora_dropout=0.1)
+model = get_peft_model(model, config)
 model.to("cuda")
 
 ds = []
