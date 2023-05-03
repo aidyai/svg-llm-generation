@@ -175,7 +175,7 @@ class CustomTrainer(Trainer):
     def detokenize(self, tokens, size=None):
         print("detokenize")
         untokened = [self.tokenizer.decode(i, skip_special_tokens=True) for i in tokens]
-        print(untokened)
+        # print(untokened)
         if size is None:
             size = untokened.count(";")
         print(size)
@@ -189,7 +189,7 @@ class CustomTrainer(Trainer):
                 prompt = "".join(untokened[:i])
             i += 3
             r, g, b = untokened[i], untokened[i + 1], untokened[i + 2]
-            print(r, g, b)
+            # print(r, g, b)
             while "path" not in untokened[i]:
                 i += 1
             i += 2
@@ -197,7 +197,7 @@ class CustomTrainer(Trainer):
             while ";" not in untokened[i]:
                 path.append(untokened[i])
                 i += 1
-            print(path)
+            # print(path)
             d = " ".join(path)
             fill = self.to_fill(r, g, b)
             result.append('<path d="' + d + '" fill="' + fill + '"/>')
@@ -206,22 +206,22 @@ class CustomTrainer(Trainer):
     def compute_loss(self, model, inputs, return_outputs=False):
         print("loss")
         filtered = [token.item() for token in inputs["labels"][0] if token != tokenizer.pad_token_id]
-        print(filtered)
+        # print(filtered)
         input, prompt = self.detokenize(filtered)
-        print(input, prompt)
+        # print(input, prompt)
         size = input.count("path")
         enc = tokenizer(prompt, return_tensors="pt")
         enc = {k: v.to("cuda") for k, v in enc.items()}
-        print(enc)
+        # print(enc)
         outputs = self.model.generate(input_ids=enc["input_ids"],
                                       attention_mask=enc["attention_mask"],
                                       max_new_tokens=1024)
-        print(outputs)
+        # print(outputs)
         try:
             expected = self.img_gen(input)
-            print(expected)
-            generated = self.img_gen(self.detokenize(outputs.detach().cpu().numpy(), size))
-            print(generated)
+            # print(expected)
+            generated = self.img_gen(self.detokenize(outputs.detach().cpu().numpy()[0], size))
+            # print(generated)
             loss_fct = nn.MSELoss()
             print("pictured")
             return loss_fct(expected, generated)
