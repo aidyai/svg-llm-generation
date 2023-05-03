@@ -210,7 +210,7 @@ class CustomTrainer(Trainer):
         input, prompt = self.detokenize(filtered)
         print(input, prompt)
         size = input.count("path")
-        enc = tokenizer.encode(prompt)
+        enc = tokenizer(prompt, return_tensors="pt")
         outputs = self.model.generate(input_ids=enc["input_ids"],
                                       attention_mask=enc["attention_mask"],
                                       max_new_tokens=1024)
