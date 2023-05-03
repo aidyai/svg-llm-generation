@@ -198,7 +198,7 @@ class CustomTrainer(Trainer):
 
     def compute_loss(self, model, inputs, return_outputs=False):
         print("loss")
-        filtered = [token for token in inputs["labels"][0] if token != tokenizer.pad_token_id]
+        filtered = [token.item() for token in inputs["labels"][0] if token != tokenizer.pad_token_id]
         print(filtered)
         input, prompt = self.detokenize(filtered)
         print(input, prompt)
