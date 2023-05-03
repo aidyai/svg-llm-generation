@@ -204,6 +204,7 @@ class CustomTrainer(Trainer):
         return "\n".join([self.header] + result + [self.footer]), prompt
 
     def compute_loss(self, model, inputs, return_outputs=False):
+        gc.collect()
         print("loss")
         filtered = [token.item() for token in inputs["labels"][0] if token != tokenizer.pad_token_id]
         # print(filtered)
@@ -220,7 +221,7 @@ class CustomTrainer(Trainer):
         try:
             expected = self.img_gen(input)
             # print(expected)
-            generated = self.img_gen(self.detokenize(outputs.detach().cpu().numpy()[0], size))
+            generated = self.img_gen(self.detokenize(outputs.detach().cpu().numpy()[0], size)[0])
             # print(generated)
             loss_fct = nn.MSELoss()
             print("pictured")
