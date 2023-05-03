@@ -101,15 +101,13 @@ class DatasetImpl(IterableDataset):
     def __len__(self):
         return len(self.cuted)
 
-    def to_map(self, tokens, size, prompt):
+    def to_map(self, tokens):
         pad_size = (self.context_size - len(tokens))
         tokens = [self.tokenizer.pad_token_id] * pad_size + tokens
         return {
             "input_ids": tokens,
             "attention_mask": [0] * pad_size + [1] * (self.context_size - pad_size),
             "labels": tokens,
-            "size": size,
-            "prompt": prompt
         }
 
     def cut(self):
@@ -130,7 +128,7 @@ class DatasetImpl(IterableDataset):
                 tokens += tokenizer.encode(';')
             if len(tokens) > self.context_size:
                 continue
-            self.cuted.append(self.to_map(tokens, len(paths), s["prompt"]))
+            self.cuted.append(self.to_map(tokens))
 
 
 tokenizer = AutoTokenizer.from_pretrained(args.tokenizer_path)
@@ -166,19 +164,24 @@ class CustomTrainer(Trainer):
             canvas_width, canvas_height, shapes, shape_groups)
         img = _render(128,  # width
                       128,  # height
-                      2,  # num_samples_x
-                      2,  # num_samples_y
+                      5,  # num_samples_x
+                      5,  # num_samples_y
                       0,  # seed
                       None,
                       *scene_args)
         return img
 
-    def detokenize(self, tokens, size):
+    def detokenize(self, tokens, size=None):
         untokened = [self.tokenizer.decode(i, skip_special_tokens=True) for i in tokens]
+        if size is None:
+            size = untokened.count(";")
         i = 0
         result = []
+        prompt = None
         for k in range(size):
             while "fill" not in untokened[i]:
+                if prompt is None:
+                    prompt = "".join(untokened[:i])
                 i += 1
             i += 3
             r, g, b = untokened[i], untokened[i + 1], untokened[i + 2]
@@ -191,22 +194,26 @@ class CustomTrainer(Trainer):
             d = " ".join(path)
             fill = self.to_fill(r, g, b)
             result.append('<path d="' + d + '" fill="' + fill + '"/>')
-        return "\n".join([self.header] + result + [self.footer])
+        return "\n".join([self.header] + result + [self.footer]), prompt
 
     def compute_loss(self, model, inputs, return_outputs=False):
-        prompt = self.tokenizer.encode(inputs["prompt"])
-        outputs = model.generate(input_ids=prompt,
-                                 attention_mask=[1] * len(prompt),
+        filtered = [token for token in inputs["labels"] if token != tokenizer.pad_token_id]
+        input, prompt = self.detokenize(filtered)
+        size = input.count("path")
+        enc = tokenizer.encode(prompt)
+        outputs = model.generate(input_ids=enc,
+                                 attention_mask=[1] * len(enc),
                                  max_new_tokens=1024)
         try:
-            generated = self.img_gen(self.detokenize(outputs.detach().cpu().numpy(), inputs["size"]))
-            expected = self.img_gen(self.detokenize(inputs["labels"], inputs["size"]))
+            expected = self.img_gen(input)
+            generated = self.img_gen(self.detokenize(outputs.detach().cpu().numpy(), size))
             loss_fct = nn.MSELoss()
             print("pictured")
             return loss_fct(expected, generated)
         except:
             print("default")
             return model(**inputs)["loss"]
+
 
 
 trainer = CustomTrainer(
