@@ -47,7 +47,7 @@ import argparse
 # print(y_pred * 10)
 
 parser = argparse.ArgumentParser()
-parser.add_argument("-dp", "--dataset_path", type=str)
+parser.add_argument("-dp", "--dataset_path", type=str, default="./pickled_dataset")
 parser.add_argument("-m", "--model_path", type=str)
 parser.add_argument("-t", "--tokenizer_path", type=str)
 parser.add_argument("-wkey", "--wandb_key", type=str)
@@ -170,8 +170,8 @@ class CustomTrainer(Trainer):
             canvas_width, canvas_height, shapes, shape_groups)
         img = _render(128,  # width
                       128,  # height
-                      5,  # num_samples_x
-                      5,  # num_samples_y
+                      3,  # num_samples_x
+                      3,  # num_samples_y
                       0,  # seed
                       None,
                       *scene_args)
