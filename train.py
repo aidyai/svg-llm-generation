@@ -76,7 +76,7 @@ for path in pathlist:
     ds.append(svg)
 print(ds[0])
 
-train, test = train_test_split(ds, test_size=0.1)
+train = ds
 len(train)
 
 
@@ -141,9 +141,9 @@ tokenizer = AutoTokenizer.from_pretrained(args.tokenizer_path)
 train_ds = DatasetImpl(
     tokenizer,
     train)
-test_ds = DatasetImpl(
-    tokenizer,
-    test)
+# test_ds = DatasetImpl(
+#     tokenizer,
+#     test)
 
 
 class CustomTrainer(Trainer):
@@ -239,8 +239,8 @@ trainer = CustomTrainer(
         save_strategy="no"
     ),
     tokenizer=tokenizer,
-    train_dataset=train_ds,
-    eval_dataset=test_ds
+    train_dataset=train_ds
+    # eval_dataset=test_ds
 )
 trainer.train()
 
