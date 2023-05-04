@@ -224,6 +224,7 @@ class CustomTrainer(Trainer):
                                       attention_mask=enc["attention_mask"],
                                       max_new_tokens=1024)
         # print(outputs)
+        def_loss = model(**inputs)["loss"]
         try:
             expected = self.img_gen(input)
             # print(expected)
@@ -231,10 +232,10 @@ class CustomTrainer(Trainer):
             # print(generated)
             loss_fct = nn.MSELoss()
             print("pictured")
-            return model(**inputs)["loss"] * loss_fct(expected, generated)
+            return def_loss * loss_fct(expected, generated)
         except:
             print("default")
-            return model(**inputs)["loss"]
+            return def_loss
 
 
 trainer = CustomTrainer(
