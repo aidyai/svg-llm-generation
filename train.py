@@ -232,10 +232,10 @@ class CustomTrainer(Trainer):
 trainer = CustomTrainer(
     model=model, args=TrainingArguments(
         "bloom-1b7_lora",
-        num_train_epochs=1,
+        num_train_epochs=100,
         per_device_eval_batch_size=1,
         per_device_train_batch_size=1,
-        logging_steps=50,
+        logging_steps=1,
         save_strategy="no"
     ),
     tokenizer=tokenizer,
