@@ -65,8 +65,8 @@ dataset_dir_name = args.dataset_path
 model = AutoModelForCausalLM.from_pretrained(
     model_name
 )
-# config = LoraConfig(task_type=TaskType.CAUSAL_LM, inference_mode=False, r=32, lora_alpha=128, lora_dropout=0.1)
-# model = get_peft_model(model, config)
+config = LoraConfig(task_type=TaskType.CAUSAL_LM, inference_mode=False, r=32, lora_alpha=128, lora_dropout=0.1)
+model = get_peft_model(model, config)
 model.to("cuda")
 
 ds = []
@@ -210,28 +210,19 @@ class CustomTrainer(Trainer):
 
     def compute_loss(self, model, inputs, return_outputs=False):
         torch.cuda.empty_cache()
-        # gc.collect()
-        # print("loss")
         filtered = [token.item() for token in inputs["labels"][0] if token != tokenizer.pad_token_id]
-        # print(filtered)
         input, prompt = self.detokenize(filtered)
-        # print(input, prompt)
         size = input.count("path")
         enc = tokenizer(prompt, return_tensors="pt")
         enc = {k: v.to("cuda") for k, v in enc.items()}
-        # print(enc)
         outputs = self.model.generate(input_ids=enc["input_ids"],
                                       attention_mask=enc["attention_mask"],
                                       max_new_tokens=1024)
-        # print(outputs)
         def_loss = model(**inputs)["loss"]
         try:
             expected = self.img_gen(input)
-            # print(expected)
             generated = self.img_gen(self.detokenize(outputs.detach().cpu().numpy()[0], size)[0])
-            # print(generated)
             loss_fct = nn.MSELoss()
-            # print("pictured")
             return def_loss * loss_fct(expected, generated)
         except:
             # print("default")
