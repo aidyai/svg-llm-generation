@@ -76,7 +76,7 @@ for path in pathlist:
     ds.append(svg)
 print(ds[0])
 
-train = ds
+train, test = train_test_split(ds, test_size=0.1)
 len(train)
 
 
@@ -141,9 +141,9 @@ tokenizer = AutoTokenizer.from_pretrained(args.tokenizer_path)
 train_ds = DatasetImpl(
     tokenizer,
     train)
-# test_ds = DatasetImpl(
-#     tokenizer,
-#     test)
+test_ds = DatasetImpl(
+    tokenizer,
+    test)
 
 
 class CustomTrainer(Trainer):
@@ -232,15 +232,16 @@ class CustomTrainer(Trainer):
 trainer = CustomTrainer(
     model=model, args=TrainingArguments(
         "bloom-1b7_lora",
-        num_train_epochs=100,
+        num_train_epochs=1,
         per_device_eval_batch_size=1,
+        learning_rate=5e-4,
         per_device_train_batch_size=1,
-        logging_steps=1,
+        logging_steps=50,
         save_strategy="no"
     ),
     tokenizer=tokenizer,
     train_dataset=train_ds,
-    eval_dataset=train_ds
+    eval_dataset=test_ds
 )
 trainer.train()
 
