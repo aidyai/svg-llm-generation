@@ -239,8 +239,8 @@ trainer = CustomTrainer(
         save_strategy="no"
     ),
     tokenizer=tokenizer,
-    train_dataset=train_ds
-    # eval_dataset=test_ds
+    train_dataset=train_ds,
+    eval_dataset=train_ds
 )
 trainer.train()
 
