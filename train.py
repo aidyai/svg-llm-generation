@@ -221,7 +221,10 @@ class CustomTrainer(Trainer):
         def_loss = model(**inputs)["loss"]
         try:
             expected = self.img_gen(input)
-            generated = self.img_gen(self.detokenize(outputs.detach().cpu().numpy()[0], size)[0])
+            print(input)
+            out = self.detokenize(outputs.detach().cpu().numpy()[0], size)[0]
+            print(out)
+            generated = self.img_gen(out)
             loss_fct = nn.MSELoss()
             loss = loss_fct(expected, generated).item()
             print(loss)
