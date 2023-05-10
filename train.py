@@ -1,50 +1,23 @@
+import argparse
 import pickle
+from pathlib import Path
 
 import huggingface_hub
+import pydiffvg
+import torch
+from peft import LoraConfig, get_peft_model, TaskType
+from sklearn.model_selection import train_test_split
 from torch import nn
+from torch.utils.data import IterableDataset
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
     Trainer,
     TrainingArguments,
-    DataCollatorForLanguageModeling,
     set_seed
 )
-import torch.nn.functional as F
-import gc
-import wandb
-import pydiffvg
-from pathlib import Path
-from tqdm import tqdm
-from peft import LoraConfig, get_peft_model, TaskType
-import os
-import torch
-from torch.utils.data import IterableDataset
-from datasets import Dataset
-from sklearn.model_selection import train_test_split
-import argparse
 
-# def img_gen(svg_str):
-#     canvas_width, canvas_height, shapes, shape_groups = pydiffvg.svg_to_scene(svg_str)
-#     _render = pydiffvg.RenderFunction.apply
-#     scene_args = pydiffvg.RenderFunction.serialize_scene(
-#         canvas_width, canvas_height, shapes, shape_groups)
-#     img = _render(128,  # width
-#                   128,  # height
-#                   5,  # num_samples_x
-#                   5,  # num_samples_y
-#                   0,  # seed
-#                   None,
-#                   *scene_args)
-#     return img
-#
-# # loss_fct = nn.MSELoss()
-# y_pred = torch.randn(10, requires_grad=True)
-# y_true = torch.randn(10)
-#
-# first = img_gen("D:\\dloads\\svgicons\\svgicons\\processed\\_0_deleted_303484_apple1-logo.svg")
-# first.requires_grad = True
-# print(y_pred * 10)
+import wandb
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-dp", "--dataset_path", type=str, default="./pickled_dataset")
@@ -74,7 +47,6 @@ pathlist = Path(dataset_dir_name).rglob('*.pkl')
 for path in pathlist:
     svg = pickle.load(open(path, "rb"))
     ds.append(svg)
-print(ds[0])
 
 train, test = train_test_split(ds, test_size=0.1)
 len(train)
@@ -84,7 +56,6 @@ def to_list(color):
     res = ["F"]
     if color == "None":
         return ["F", "_", "_", "_"]
-    print(color)
     res.append(str(int(color[1:3], 16)))
     res.append(str(int(color[3:5], 16)))
     res.append(str(int(color[5:7], 16)))
@@ -178,12 +149,9 @@ class CustomTrainer(Trainer):
         return img
 
     def detokenize(self, tokens, size=None):
-        # print("detokenize")
         untokened = [self.tokenizer.decode(i, skip_special_tokens=True) for i in tokens]
-        # print(untokened)
         if size is None:
             size = untokened.count(";")
-        # print(size)
         i = 0
         result = []
         prompt = None
@@ -194,7 +162,6 @@ class CustomTrainer(Trainer):
                 prompt = "".join(untokened[:i])
             i += 3
             r, g, b = untokened[i], untokened[i + 1], untokened[i + 2]
-            # print(r, g, b)
             while "path" not in untokened[i]:
                 i += 1
             i += 2
@@ -202,7 +169,6 @@ class CustomTrainer(Trainer):
             while ";" not in untokened[i]:
                 path.append(untokened[i])
                 i += 1
-            # print(path)
             d = " ".join(path)
             fill = self.to_fill(r, g, b)
             result.append('<path d="' + d + '" fill="' + fill + '"/>')
@@ -221,16 +187,12 @@ class CustomTrainer(Trainer):
         def_loss = model(**inputs)["loss"]
         try:
             expected = self.img_gen(input)
-            print(input)
             out = self.detokenize(outputs.detach().cpu().numpy()[0], size)[0]
-            print(out)
             generated = self.img_gen(out)
             loss_fct = nn.MSELoss()
             loss = loss_fct(expected, generated).item()
-            print(loss)
             return def_loss * loss
         except:
-            # print("default")
             return def_loss
 
 

@@ -1,11 +1,11 @@
+import argparse
 import math
-import typing
 import os
-import shutil
+import typing
+from pathlib import Path
+
 import svgelements
 from svgelements import *
-import argparse
-from pathlib import Path
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-dp", "--dataset_path", type=str)
@@ -18,11 +18,10 @@ parser.add_argument("-y", "--max_y", type=int, default=512)
 
 args = parser.parse_args()
 
-# Path(args.save_folder).mkdir(parents=True, exist_ok=True)
-dataset_path = 'D:\\dloads\\svgicons\\svgicons'
+dataset_path = args.dataset_path
 pathlist = Path(dataset_path).rglob('*.svg')
-overflowed = 'D:\\dloads\\svgicons\\svgicons\\overflowed'
-processed = 'D:\\dloads\\svgicons\\svgicons\\processed'
+overflowed = args.overflowed_path
+processed = args.save_folder
 
 Path(overflowed).mkdir(parents=True, exist_ok=True)
 Path(processed).mkdir(parents=True, exist_ok=True)
@@ -33,8 +32,6 @@ maxX = args.max_x
 maxY = args.max_y
 
 svg_parser = svgelements.SVG()
-
-element = svg_parser.parse("C:\\Users\\glebm\\Desktop\\fruits\\apple-organic.svg")
 
 
 def getSize(element):
@@ -56,9 +53,6 @@ class Normalizer:
         segmentArgs = [name]
         for pair in splitted[1:]:
             x, y = [float(i) for i in pair.split(",")]
-            # if seg.relative and seg.start is not None:
-            #     x += seg.start.x
-            #     y += seg.start.y
             segmentArgs += self.normalized(x, y)
         return segmentArgs
 
@@ -108,8 +102,6 @@ def de_casteljau(res_paths):
     new_paths = []
     for p in res_paths:
         path = p["path"]
-        if len(path) < 2:
-            lkdsjvs = 928
         while len(path) < segments_per_path:
             max_ind = 1
             max_path_length = -1
@@ -143,30 +135,20 @@ for path in pathlist:
         continue
     try:
         element = typing.cast(SVG, svg_parser.parse(str(path)))
-        if (path.name == "0xbtc.svg"):
-            kldj = 1
         res_paths = []
         height, width = getSize(element)
         overflow = False
         normalizer = Normalizer(height, width, maxX, maxY)
         for t in element.elements(lambda e: isinstance(e, Shape)):
             svgPath = to_path(t)
-            if (path.name == "0xbtc.svg"):
-                print(svgPath.string_xml())
             start = svgPath.first_point
             pieces = []
             for i, piece in enumerate(svgPath):
-                # print(type(piece))
                 if isinstance(piece, Move):
                     piece = typing.cast(Move, piece)
                     if len(pieces) != 0:
                         fail = True
                         continue
-                        res_paths.append({
-                            "path": pieces,
-                            "fill": svgPath.fill
-                        })
-                        pieces = []
                     pieces.append(piece)
                 elif isinstance(piece, CubicBezier):
                     piece = typing.cast(CubicBezier, piece)
@@ -211,14 +193,9 @@ for path in pathlist:
             print("Overflow: " + str(path))
             place = str(Path(overflowed + "\\" + str(path).replace(dataset_path, "").replace("\\", "_")))
             to_svg(res_paths, normalizer).write_xml(place)
-            cnt += 1
         else:
             place = str(Path(processed + "\\" + str(path).replace(dataset_path, "").replace("\\", "_")))
             to_svg(res_paths, normalizer).write_xml(place)
-            # print([" ".join(
-            #     [" ".join([i if isinstance(i, str) else str(math.ceil(float(i))) for i in e]) for e in seg["path"]]) for seg
-            #     in res_paths])
-        cht = 9
     except:
         print("Exception on " + path.name)
 print(cnt)
